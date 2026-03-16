@@ -8,7 +8,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="포트폴리오">
-  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>주식 포트폴리오</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -448,8 +449,10 @@ body::before{content:'';position:fixed;inset:0;background:
     <div style="width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,#4361ee,#7b5ea7);display:flex;align-items:center;justify-content:center;flex-shrink:0">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>
     </div>
-    <div style="flex:1"><div style="font-size:14px;font-weight:700;color:#1a2040">앱으로 설치하기</div>
-    <div style="font-size:12px;color:#5a6490;margin-top:2px;font-weight:500">홈 화면에 추가하면 앱처럼 바로 실행돼요</div></div>
+    <div style="flex:1">
+      <div style="font-size:14px;font-weight:700;color:#1a2040">앱으로 설치하기</div>
+      <div style="font-size:12px;color:#5a6490;margin-top:2px;font-weight:500">홈 화면에 추가하면 앱처럼 바로 실행돼요</div>
+    </div>
     <button id="install-btn" style="padding:8px 18px;background:linear-gradient(135deg,#4361ee,#7b5ea7);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">설치</button>
     <button onclick="document.getElementById('install-banner').style.display='none'" style="background:none;border:none;color:#8a94bb;font-size:22px;cursor:pointer;padding:0 4px">&times;</button>
   </div>
@@ -3178,18 +3181,43 @@ gwInitEvents();
 
 <script>
 (function(){
-  if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('./sw.js').catch(function(){});});}
-  var ip=null;
-  window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();ip=e;var b=document.getElementById('install-banner');if(b)b.style.display='flex';});
-  window.addEventListener('appinstalled',function(){var b=document.getElementById('install-banner');if(b)b.style.display='none';ip=null;});
-  document.addEventListener('DOMContentLoaded',function(){
-    var btn=document.getElementById('install-btn');
-    if(btn)btn.addEventListener('click',function(){
-      if(ip){ip.prompt();ip.userChoice.then(function(){ip=null;var b=document.getElementById('install-banner');if(b)b.style.display='none';});}
-      else alert('크롬 메뉴(⋮) → "홈 화면에 추가"를 선택해 주세요.');
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', function(){
+      navigator.serviceWorker.register('./sw.js')
+        .then(function(r){console.log('SW ok',r.scope);})
+        .catch(function(e){console.log('SW fail',e);});
     });
+  }
+  var ip=null;
+  window.addEventListener('beforeinstallprompt', function(e){
+    e.preventDefault(); ip=e;
+    var b=document.getElementById('install-banner');
+    if(b) b.style.display='flex';
   });
-  if(window.matchMedia('(display-mode: standalone)').matches){var b=document.getElementById('install-banner');if(b)b.style.display='none';}
+  window.addEventListener('appinstalled', function(){
+    var b=document.getElementById('install-banner');
+    if(b) b.style.display='none';
+    ip=null;
+  });
+  document.addEventListener('DOMContentLoaded', function(){
+    var btn=document.getElementById('install-btn');
+    if(btn) btn.addEventListener('click', function(){
+      if(ip){
+        ip.prompt();
+        ip.userChoice.then(function(){
+          ip=null;
+          var b=document.getElementById('install-banner');
+          if(b) b.style.display='none';
+        });
+      } else {
+        alert('주소샰 오른쪽 설치 아이콘을 클릭하거나 크롬 메뉴에서 앱 설치를 선택하세요.');
+      }
+    });
+    if(window.matchMedia('(display-mode: standalone)').matches){
+      var b=document.getElementById('install-banner');
+      if(b) b.style.display='none';
+    }
+  });
 })();
 </script>
 </body>

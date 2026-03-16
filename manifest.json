@@ -1,8 +1,8 @@
 {
   "name": "주식 포트폴리오",
   "short_name": "포트폴리오",
-  "start_url": "./index.html",
-  "scope": "./",
+  "start_url": ".",
+  "scope": ".",
   "display": "standalone",
   "background_color": "#f0f4ff",
   "theme_color": "#4361ee",
