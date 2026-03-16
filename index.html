@@ -3084,31 +3084,56 @@ function importData(event){
   var file=event.target.files[0];
   if(!file) return;
   var reader=new FileReader();
-  reader.onload=function(e){
+  reader.onload=function(ev){
     try{
-      var data=JSON.parse(e.target.result);
-      if(!data.accounts||!data.trades){
-        alert('올바른 백업 파일이 아닙니다.');return;
+      var raw=JSON.parse(ev.target.result);
+
+      // 형식 1: exportData() 버튼으로 저장한 파일
+      // {version:1, accounts:[], trades:[], ...}
+      // 형식 2: 북마크릿으로 저장한 파일
+      // {a:"[...]", t:"[...]", d:"[...]", r:"[...]", p:"{}"}
+
+      var accts, trds, divS, divR, prices;
+
+      if(raw.accounts !== undefined){
+        // 형식 1
+        accts  = raw.accounts  || [];
+        trds   = raw.trades    || [];
+        divS   = raw.divStocks || [];
+        divR   = raw.divRecords|| [];
+        prices = raw.prices    || {};
+      } else if(raw.a !== undefined){
+        // 형식 2 (북마크릿) - 값이 string이면 JSON.parse
+        accts  = typeof raw.a==='string' ? JSON.parse(raw.a||'[]') : (raw.a||[]);
+        trds   = typeof raw.t==='string' ? JSON.parse(raw.t||'[]') : (raw.t||[]);
+        divS   = typeof raw.d==='string' ? JSON.parse(raw.d||'[]') : (raw.d||[]);
+        divR   = typeof raw.r==='string' ? JSON.parse(raw.r||'[]') : (raw.r||[]);
+        prices = typeof raw.p==='string' ? JSON.parse(raw.p||'{}') : (raw.p||{});
+      } else {
+        alert('올바른 백업 파일이 아닙니다.\npf_backup.json 또는 portfolio_backup_날짜.json 파일을 선택해 주세요.');
+        return;
       }
-      if(!confirm('기존 데이터를 모두 백업 파일로 교체할까요?\n(현재 데이터는 사라집니다)')) return;
-      accounts=data.accounts||[];
-      trades=data.trades||[];
-      divStocks=data.divStocks||[];
-      divRecords=data.divRecords||[];
-      livePrices=data.prices||{};
-      // 마이그레이션 후 저장
+
+      if(!confirm('기존 데이터를 모두 백업 파일로 교체할까요?\n계좌 '+accts.length+'개, 거래내역 '+trds.length+'건')) return;
+
+      accounts   = accts;
+      trades     = trds;
+      divStocks  = divS;
+      divRecords = divR;
+      livePrices = prices;
+
       migrateData();
       saveLocal();
       render();
+
       var st=document.getElementById('backup-status');
-      if(st) st.textContent='✅ 데이터 복원 완료! 계좌 '+accounts.length+'개, 거래 '+trades.length+'건';
-      alert('데이터 복원 완료!\n계좌 '+accounts.length+'개, 거래내역 '+trades.length+'건이 복원되었습니다.');
-    }catch(err){
-      alert('파일을 읽는 중 오류가 발생했습니다: '+err.message);
+      if(st) st.textContent='✅ 복원 완료! 계좌 '+accounts.length+'개, 거래 '+trades.length+'건';
+      alert('✅ 데이터 복원 완료!\n계좌 '+accounts.length+'개, 거래내역 '+trades.length+'건이 복원되었습니다.');
+    } catch(err){
+      alert('파일 읽기 오류: '+err.message+'\n\n파일이 손상됐거나 형식이 맞지 않습니다.');
     }
   };
   reader.readAsText(file);
-  // 파일 input 초기화 (같은 파일 다시 선택 가능하게)
   event.target.value='';
 }
 /* ── BOOT ── */
