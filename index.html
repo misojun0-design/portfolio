@@ -1116,14 +1116,11 @@ function fetchAllPrices(){
   var btn=document.getElementById('refresh-btn');
   var riEl=document.getElementById('ri');
   var stEl=document.getElementById('price-st');
-  btn.classList.add('loading');
+  if(btn) btn.classList.add('loading');
   if(riEl) riEl.textContent='…';
-  if(stEl) stEl.textContent='현재가 불러오는 중... (0/'+tickers.length+')';
+  if(stEl) stEl.textContent='현재가 불러오는 중...';
 
-  var ok=0, fail=0, done=0;
-
-  function onFinish(){
-    // stocks curPrice 동기화
+  function onDone(ok, fail){
     accounts.forEach(function(a){
       (a.stocks||[]).forEach(function(s){
         if(livePrices[s.ticker]&&livePrices[s.ticker]>0) s.curPrice=livePrices[s.ticker];
@@ -1132,57 +1129,91 @@ function fetchAllPrices(){
     saveLocal();
     var ts=new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
     if(stEl) stEl.textContent='업데이트: '+ts+' · '+ok+'개 성공'+(fail?' · '+fail+'개 실패':'');
-    btn.classList.remove('loading');
+    if(btn) btn.classList.remove('loading');
     if(riEl) riEl.textContent='↻';
     render();
   }
 
+  // ── 방법 1: Google Apps Script 프록시 (설정 탭에 URL 입력된 경우) ──
+  if(scriptUrl){
+    var url=scriptUrl+(scriptUrl.indexOf('?')>=0?'&':'?')+'action=prices&tickers='+encodeURIComponent(tickers.join(','));
+    fetch(url)
+      .then(function(r){return r.json();})
+      .then(function(j){
+        var ok=0,fail=0;
+        if(j&&j.prices){
+          Object.keys(j.prices).forEach(function(t){
+            if(j.prices[t]>0){livePrices[t]=j.prices[t];ok++;}
+            else fail++;
+          });
+        }
+        if(ok>0){ onDone(ok,fail); return; }
+        // GAS에서 가격 못 받으면 직접 호출로 fallback
+        fetchByProxy(tickers, onDone);
+      })
+      .catch(function(){ fetchByProxy(tickers, onDone); });
+    return;
+  }
+
+  // ── 방법 2: CORS 프록시 직접 호출 ──
+  fetchByProxy(tickers, onDone);
+}
+
+function fetchByProxy(tickers, onDone){
+  var ok=0, fail=0, done=0;
+  var stEl=document.getElementById('price-st');
+
   function fetchOne(ticker, cb){
     var sym=getYSym(ticker);
-    // 프록시 목록 - 순서대로 시도
+    var base='https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d';
     var urls=[
-      'https://corsproxy.io/?url='+encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d'),
-      'https://api.allorigins.win/raw?url='+encodeURIComponent('https://query2.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d'),
-      'https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
-      'https://query2.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d'
+      'https://corsproxy.io/?url='+encodeURIComponent(base),
+      'https://api.allorigins.win/raw?url='+encodeURIComponent(base),
+      'https://cors-anywhere.herokuapp.com/'+base,
+      base
     ];
-    function tryUrl(idx){
-      if(idx>=urls.length){ cb(null); return; }
-      fetch(urls[idx], {
-        headers:{'User-Agent':'Mozilla/5.0'},
-        signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined
-      })
-      .then(function(r){
-        if(!r.ok) throw new Error('HTTP '+r.status);
-        return r.json();
-      })
-      .then(function(j){
-        var m=j&&j.chart&&j.chart.result&&j.chart.result[0]&&j.chart.result[0].meta;
-        var p=m&&(m.regularMarketPrice||m.previousClose);
-        if(p&&p>0){ cb(Math.round(p*10)/10); }
-        else { tryUrl(idx+1); }
-      })
-      .catch(function(){ tryUrl(idx+1); });
+    function tryUrl(i){
+      if(i>=urls.length){cb(null);return;}
+      var ctrl=null;
+      var timer=setTimeout(function(){
+        if(ctrl) try{ctrl.abort();}catch(e){}
+        tryUrl(i+1);
+      }, 6000);
+      try{
+        ctrl=new AbortController();
+        fetch(urls[i],{signal:ctrl.signal})
+          .then(function(r){
+            clearTimeout(timer);
+            if(!r.ok) throw new Error('HTTP '+r.status);
+            return r.json();
+          })
+          .then(function(j){
+            var m=j&&j.chart&&j.chart.result&&j.chart.result[0]&&j.chart.result[0].meta;
+            var p=m&&(m.regularMarketPrice||m.previousClose);
+            if(p&&p>0){cb(Math.round(p*10)/10);}
+            else{tryUrl(i+1);}
+          })
+          .catch(function(){clearTimeout(timer);tryUrl(i+1);});
+      }catch(e){clearTimeout(timer);tryUrl(i+1);}
     }
     tryUrl(0);
   }
 
-  // 동시 최대 3개 병렬 처리
   var idx=0;
   function runNext(){
     if(idx>=tickers.length) return;
     var t=tickers[idx++];
-    fetchOne(t, function(price){
-      if(price!==null){ livePrices[t]=price; ok++; }
+    fetchOne(t,function(price){
+      if(price!==null){livePrices[t]=price;ok++;}
       else fail++;
       done++;
       if(stEl) stEl.textContent='현재가 불러오는 중... ('+done+'/'+tickers.length+')';
-      if(done>=tickers.length){ onFinish(); return; }
+      if(done>=tickers.length){onDone(ok,fail);return;}
       runNext();
     });
   }
-  // 3개 동시 시작
-  runNext(); runNext(); runNext();
+  // 3개 병렬
+  runNext();runNext();runNext();
 }
 
 /* ======================================================
