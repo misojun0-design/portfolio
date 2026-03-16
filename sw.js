@@ -1,9 +1,9 @@
-var CACHE = 'pf-v3';
+var CACHE = 'pf-v27';
 self.addEventListener('install', function(e) {
   self.skipWaiting();
   e.waitUntil(
     caches.open(CACHE).then(function(c) {
-      return c.addAll(['/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png']).catch(function(){});
+      return c.addAll(['./index.html','./manifest.json','./icon-192.png','./icon-512.png']).catch(function(){});
     })
   );
 });
@@ -17,13 +17,13 @@ self.addEventListener('fetch', function(e) {
   if(e.request.method!=='GET') return;
   e.respondWith(
     fetch(e.request).then(function(r) {
-      if(r&&r.status===200) {
+      if(r&&r.status===200){
         var clone=r.clone();
         caches.open(CACHE).then(function(c){c.put(e.request,clone);});
       }
       return r;
     }).catch(function() {
-      return caches.match(e.request).then(function(c){return c||caches.match('/index.html');});
+      return caches.match(e.request).then(function(c){return c||caches.match('./index.html');});
     })
   );
 });
